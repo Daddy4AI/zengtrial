@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Handwriting Recognition with Tesseract.js</title>
+    <style>
+        canvas {
+            border: 1px solid black;
+            margin-top: 20px;
+            cursor: crosshair;
+        }
+        #output {
+            margin-top: 20px;
+            font-size: 24px;
+        }
+        #loading {
+            font-size: 18px;
+            color: blue;
+        }
+    </style>
+</head>
+<body>
+
+<h2>Handwriting Recognition</h2>
+<p>Draw something in the box below and wait for the recognition to complete:</p>
+
+<canvas id="handwritingCanvas" width="500" height="200"></canvas>
+<div id="loading">Recognizing handwriting...</div>
+<div id="output"></div>
+
+<!-- Include Tesseract.js from CDN -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.0/dist/tesseract.min.js"></script>
+
+<script>
+// Setup the canvas and drawing logic
+const canvas = document.getElementById('handwritingCanvas');
+const ctx = canvas.getContext('2d');
+let isDrawing = false;
+let lastX = 0;
+let lastY = 0;
+
+// Start drawing
+canvas.addEventListener('mousedown', startPosition);
+canvas.addEventListener('mousemove', draw);
+canvas.addEventListener('mouseup', endPosition);
+canvas.addEventListener('mouseout', endPosition);
+
+function startPosition(e) {
+    isDrawing = true;
+    lastX = e.offsetX;
+    lastY = e.offsetY;
+}
+
+function endPosition() {
+    isDrawing = false;
+    recognizeHandwriting();  // Trigger recognition when user stops drawing
+}
+
+function draw(e) {
+    if (!isDrawing) return;
+
+    const x = e.offsetX;
+    const y = e.offsetY;
+
+    ctx.beginPath();
+    ctx.moveTo(lastX, lastY);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+
+    lastX = x;
+    lastY = y;
+}
+
+// Recognize handwriting using Tesseract.js
+function recognizeHandwriting() {
+    const image = canvas.toDataURL('image/png'); // Convert canvas to image (PNG)
+
+    // Show loading message
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('output').textContent = '';
+
+    // Use Tesseract.js to recognize the image
+    Tesseract.recognize(
+        image,                  // The image to recognize
+        'eng',                   // The language (English)
+        {
+            logger: (m) => console.log(m)  // Optional logger for progress
+        }
+    ).then(({ data: { text } }) => {
+        // Hide loading message and display the recognized text
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('output').textContent = 'Recognized Text: ' + text;
+    }).catch((err) => {
+        // Handle errors
+        console.error(err);
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('output').textContent = 'Error recognizing text';
+    });
+}
+</script>
+
+</body>
+</html>
