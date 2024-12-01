@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Test Results</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        #stats {
+            margin: 20px;
+        }
+        #resultsTable {
+            width: 80%;
+            margin: 20px auto;
+            border-collapse: collapse;
+        }
+        #resultsTable th, #resultsTable td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+        #resultsTable th {
+            background-color: #f2f2f2;
+        }
+        .highlight {
+            background-color: #e0f7fa;
+        }
+        /* Floating icon for navigation */
+        #backIcon {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            font-size: 24px;
+            cursor: pointer;
+            color: #007bff;
+        }
+    </style>
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js';
+        import { getDatabase, ref, get } from 'https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js';
+        import firebaseConfig from './firebaseConfig.js';
+
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+
+        async function fetchResults() {
+            const testResultsRef = ref(database, 'testResults');
+            const wordListRef = ref(database, 'wordlist');
+
+            // Fetch testResults to get the words that have been tested
+            const testResultsSnapshot = await get(testResultsRef);
+            const testResults = testResultsSnapshot.val() || {};
+
+            // Fetch wordlist to get the order of words
+            const wordListSnapshot = await get(wordListRef);
+            const wordList = wordListSnapshot.val() || [];
+
+            let totalWords = 0;
+            let totalCorrect = 0;
+            let totalTests = 0;
+
+            const tableBody = document.getElementById('resultsTableBody');
+            tableBody.innerHTML = '';  // Clear previous content
+
+            // Filter and sort testResults by the order in wordlist
+            const sortedResults = wordList
+                .map((word, index) => ({
+                    word,
+                    index, // Store the index from wordlist
+                    ...testResults[word]
+                }))
+                .filter(({ word }) => word in testResults); // Include only words present in testResults
+
+            sortedResults.forEach(({ word, index, correctCount = 0, incorrectCount = 0 }) => {
+                const totalCount = correctCount + incorrectCount;
+                totalWords++;
+                totalCorrect += correctCount;
+                totalTests += totalCount;
+
+                const row = document.createElement('tr');
+                row.innerHTML = `<td>${index + 1}</td><td>${word}</td><td>${correctCount}</td><td>${incorrectCount}</td><td>${totalCount}</td>`;
+                
+                if (incorrectCount > 0) {
+                    row.classList.add('highlight');
+                }
+
+                tableBody.appendChild(row);
+            });
+
+            const correctPercentage = totalTests > 0 ? ((totalCorrect / totalTests) * 100).toFixed(2) : 0;
+            document.getElementById('totalWords').textContent = totalWords;
+            document.getElementById('correctPercentage').textContent = correctPercentage;
+        }
+
+        document.addEventListener('DOMContentLoaded', fetchResults);
+    </script>
+</head>
+<body>
+    <!-- Floating icon for navigation back to index.html -->
+    <div id="backIcon" onclick="window.location.href='index.html'">&#8592; Back</div>
+
+    <h1>Test Results Summary</h1>
+    <div id="stats">
+        <p>Total Words Tested: <span id="totalWords">0</span></p>
+        <p>Correct Answer Percentage: <span id="correctPercentage">0</span>%</p>
+    </div>
+    <table id="resultsTable">
+        <thead>
+            <tr>
+                <th>ID</th> <!-- New ID column header -->
+                <th>Word</th>
+                <th>Correct Count</th>
+                <th>Incorrect Count</th>
+                <th>Total Tests</th>
+            </tr>
+        </thead>
+        <tbody id="resultsTableBody"></tbody>
+    </table>
+</body>
+</html>
