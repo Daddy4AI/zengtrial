@@ -119,7 +119,7 @@ async function recognizeHandwriting() {
     const imageData = canvas.toDataURL('image/png');
     const base64Image = imageData.split(',')[1]; // 提取 base64 数据
 
-    const response = await fetch('https://<your-repo-name>.github.io/proxy', {
+    const response = await fetch('https://daddy4ai.github.io/zengtrial/proxy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ image: base64Image })
