@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Handwriting Recognition with Tesseract.js</title>
+    <title>Handwriting Input on iPad</title>
     <style>
         canvas {
             border: 1px solid black;
             margin-top: 20px;
             cursor: crosshair;
+            touch-action: none; /* 禁止默认触摸行为 */
         }
         #output {
             margin-top: 20px;
@@ -23,22 +24,27 @@
 <body>
 
 <h2>Handwriting Recognition</h2>
-<p>Draw something in the box below and wait for the recognition to complete:</p>
+<p>Write something in the box below using your finger or Apple Pencil:</p>
 
 <canvas id="handwritingCanvas" width="500" height="200"></canvas>
-<div id="loading">Recognizing handwriting...</div>
+<div id="loading" style="display: none;">Recognizing handwriting...</div>
 <div id="output"></div>
 
 <!-- Include Tesseract.js from CDN -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.0/dist/tesseract.min.js"></script>
 
 <script>
-// Setup the canvas and drawing logic
+// Setup the canvas
 const canvas = document.getElementById('handwritingCanvas');
 const ctx = canvas.getContext('2d');
 let isDrawing = false;
 let lastX = 0;
 let lastY = 0;
+
+// Disable default touch behavior to prevent scrolling
+canvas.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
+canvas.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+canvas.addEventListener('touchend', (e) => e.preventDefault(), { passive: false });
 
 // Start drawing
 canvas.addEventListener('mousedown', startPosition);
@@ -46,53 +52,59 @@ canvas.addEventListener('mousemove', draw);
 canvas.addEventListener('mouseup', endPosition);
 canvas.addEventListener('mouseout', endPosition);
 
+canvas.addEventListener('touchstart', (e) => startPosition(e.touches[0]));
+canvas.addEventListener('touchmove', (e) => draw(e.touches[0]));
+canvas.addEventListener('touchend', endPosition);
+
+// Start position
 function startPosition(e) {
     isDrawing = true;
-    lastX = e.offsetX;
-    lastY = e.offsetY;
+    const rect = canvas.getBoundingClientRect();
+    lastX = e.clientX - rect.left;
+    lastY = e.clientY - rect.top;
 }
 
+// End position
 function endPosition() {
     isDrawing = false;
-    recognizeHandwriting();  // Trigger recognition when user stops drawing
+    recognizeHandwriting(); // Trigger recognition after writing
 }
 
+// Draw on canvas
 function draw(e) {
     if (!isDrawing) return;
 
-    const x = e.offsetX;
-    const y = e.offsetY;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
 
     ctx.beginPath();
     ctx.moveTo(lastX, lastY);
     ctx.lineTo(x, y);
+    ctx.strokeStyle = 'black';
+    ctx.lineWidth = 2;
     ctx.stroke();
 
     lastX = x;
     lastY = y;
 }
 
-// Recognize handwriting using Tesseract.js
+// Recognize handwriting with Tesseract.js
 function recognizeHandwriting() {
-    const image = canvas.toDataURL('image/png'); // Convert canvas to image (PNG)
-
-    // Show loading message
+    const image = canvas.toDataURL('image/png'); // Convert canvas to image
     document.getElementById('loading').style.display = 'block';
     document.getElementById('output').textContent = '';
 
-    // Use Tesseract.js to recognize the image
     Tesseract.recognize(
-        image,                  // The image to recognize
-        'eng',                   // The language (English)
+        image,
+        'eng',
         {
-            logger: (m) => console.log(m)  // Optional logger for progress
+            logger: (m) => console.log(m) // Optional logger for progress
         }
     ).then(({ data: { text } }) => {
-        // Hide loading message and display the recognized text
         document.getElementById('loading').style.display = 'none';
         document.getElementById('output').textContent = 'Recognized Text: ' + text;
     }).catch((err) => {
-        // Handle errors
         console.error(err);
         document.getElementById('loading').style.display = 'none';
         document.getElementById('output').textContent = 'Error recognizing text';
