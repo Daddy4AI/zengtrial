@@ -1,0 +1,53 @@
+name: Azure Proxy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  proxy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up a Node.js environment
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+
+      - name: Install dependencies
+        run: npm install express body-parser
+
+      - name: Start Azure Proxy
+        env:
+          AZURE_API_KEY: ${{ secrets.AZURE_API_KEY }}
+          AZURE_ENDPOINT: ${{ secrets.AZURE_ENDPOINT }}
+        run: |
+          echo "const express = require('express');
+          const bodyParser = require('body-parser');
+          const app = express();
+          const fetch = require('node-fetch');
+
+          app.use(bodyParser.json());
+
+          app.post('/proxy', async (req, res) => {
+            try {
+              const { image } = req.body;
+              const response = await fetch(\`\${process.env.AZURE_ENDPOINT}/vision/v3.2/read/analyze\`, {
+                method: 'POST',
+                headers: {
+                  'Ocp-Apim-Subscription-Key': process.env.AZURE_API_KEY,
+                  'Content-Type': 'application/octet-stream',
+                },
+                body: Buffer.from(image, 'base64'),
+              });
+              const data = await response.json();
+              res.json(data);
+            } catch (err) {
+              res.status(500).json({ error: err.message });
+            }
+          });
+
+          app.listen(3000, () => console.log('Azure Proxy listening on port 3000'));
+          " > server.js
+          node server.js
