@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Handwriting Input on iPad</title>
+    <title>Canvas Handwriting with Azure OCR</title>
     <style>
         canvas {
             border: 1px solid black;
@@ -12,65 +12,79 @@
             touch-action: none; /* 禁止默认触摸行为 */
         }
         #output {
-            margin-top: 20px;
-            font-size: 24px;
+            margin-top: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
-        #loading {
-            font-size: 18px;
-            color: blue;
+        textarea {
+            width: 100%;
+            height: 60px;
+            font-size: 16px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin-right: 10px;
+            cursor: pointer;
         }
     </style>
 </head>
 <body>
 
-<h2>Handwriting Recognition</h2>
-<p>Write something in the box below using your finger or Apple Pencil:</p>
+<h2>Handwriting to Text with Azure OCR</h2>
+<p>Write something in the box below using your finger or mouse. Recognized text will appear in the text box.</p>
 
 <canvas id="handwritingCanvas" width="500" height="200"></canvas>
-<div id="loading" style="display: none;">Recognizing handwriting...</div>
-<div id="output"></div>
-
-<!-- Include Tesseract.js from CDN -->
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.0/dist/tesseract.min.js"></script>
+<div id="output">
+    <textarea id="textBox" placeholder="Recognized text will appear here..."></textarea>
+    <div>
+        <button id="clearButton">Clear</button>
+        <button id="confirmButton">Confirm</button>
+    </div>
+</div>
 
 <script>
-// Setup the canvas
+// Azure OCR API Configuration
+const API_KEY = "YOUR_AZURE_API_KEY"; // Replace with your Azure OCR API key
+const ENDPOINT = "YOUR_AZURE_ENDPOINT"; // Replace with your Azure endpoint
+
+// Canvas and Context Setup
 const canvas = document.getElementById('handwritingCanvas');
 const ctx = canvas.getContext('2d');
 let isDrawing = false;
 let lastX = 0;
 let lastY = 0;
 
-// Disable default touch behavior to prevent scrolling
-canvas.addEventListener('touchstart', (e) => e.preventDefault(), { passive: false });
-canvas.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
-canvas.addEventListener('touchend', (e) => e.preventDefault(), { passive: false });
+// Text Box and Buttons
+const textBox = document.getElementById('textBox');
+const clearButton = document.getElementById('clearButton');
+const confirmButton = document.getElementById('confirmButton');
 
-// Start drawing
-canvas.addEventListener('mousedown', startPosition);
+// Event Listeners for Drawing
+canvas.addEventListener('mousedown', startDrawing);
 canvas.addEventListener('mousemove', draw);
-canvas.addEventListener('mouseup', endPosition);
-canvas.addEventListener('mouseout', endPosition);
-
-canvas.addEventListener('touchstart', (e) => startPosition(e.touches[0]));
+canvas.addEventListener('mouseup', stopDrawing);
+canvas.addEventListener('mouseout', stopDrawing);
+canvas.addEventListener('touchstart', (e) => startDrawing(e.touches[0]));
 canvas.addEventListener('touchmove', (e) => draw(e.touches[0]));
-canvas.addEventListener('touchend', endPosition);
+canvas.addEventListener('touchend', stopDrawing);
 
-// Start position
-function startPosition(e) {
+// Start Drawing
+function startDrawing(e) {
     isDrawing = true;
     const rect = canvas.getBoundingClientRect();
     lastX = e.clientX - rect.left;
     lastY = e.clientY - rect.top;
 }
 
-// End position
-function endPosition() {
+// Stop Drawing and Trigger OCR
+function stopDrawing() {
+    if (isDrawing) recognizeHandwriting();
     isDrawing = false;
-    recognizeHandwriting(); // Trigger recognition after writing
 }
 
-// Draw on canvas
+// Draw on Canvas
 function draw(e) {
     if (!isDrawing) return;
 
@@ -89,26 +103,79 @@ function draw(e) {
     lastY = y;
 }
 
-// Recognize handwriting with Tesseract.js
-function recognizeHandwriting() {
-    const image = canvas.toDataURL('image/png'); // Convert canvas to image
-    document.getElementById('loading').style.display = 'block';
-    document.getElementById('output').textContent = '';
+// Clear Canvas and Text Box
+clearButton.addEventListener('click', () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    textBox.value = '';
+});
 
-    Tesseract.recognize(
-        image,
-        'eng',
-        {
-            logger: (m) => console.log(m) // Optional logger for progress
-        }
-    ).then(({ data: { text } }) => {
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('output').textContent = 'Recognized Text: ' + text;
-    }).catch((err) => {
-        console.error(err);
-        document.getElementById('loading').style.display = 'none';
-        document.getElementById('output').textContent = 'Error recognizing text';
+// Confirm Button
+confirmButton.addEventListener('click', () => {
+    alert(`Confirmed text: ${textBox.value}`);
+});
+
+// Recognize Handwriting with Azure OCR
+async function recognizeHandwriting() {
+    const imageData = canvas.toDataURL('image/png');
+    const base64Image = imageData.split(',')[1]; // 提取 base64 数据
+
+    const response = await fetch('https://<your-repo-name>.github.io/proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: base64Image })
     });
+
+    if (response.ok) {
+        const result = await response.json();
+        displayRecognizedText(result);
+    } else {
+        console.error('Error with proxy request:', response.status, await response.text());
+    }
+}
+
+
+// Poll for OCR Result
+async function pollForResult(operationLocation) {
+    let result = null;
+
+    while (!result) {
+        await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait for 2 seconds
+        const pollResponse = await fetch(operationLocation, {
+            headers: { 'Ocp-Apim-Subscription-Key': API_KEY }
+        });
+
+        const data = await pollResponse.json();
+        if (data.status === 'succeeded') {
+            result = data.analyzeResult;
+        } else if (data.status === 'failed') {
+            throw new Error('Azure OCR analysis failed');
+        }
+    }
+
+    return result;
+}
+
+// Display Recognized Text
+function displayRecognizedText(result) {
+    const lines = result.readResults
+        .flatMap((page) => page.lines.map((line) => line.text))
+        .join(' ');
+    textBox.value = lines;
+}
+
+// Utility: Convert DataURL to Blob
+function dataURLtoBlob(dataurl) {
+    const arr = dataurl.split(',');
+    const mime = arr[0].match(/:(.*?);/)[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+
+    while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+    }
+
+    return new Blob([u8arr], { type: mime });
 }
 </script>
 
