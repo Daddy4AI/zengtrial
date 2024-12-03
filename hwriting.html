@@ -114,7 +114,6 @@ confirmButton.addEventListener('click', () => {
     alert(`Confirmed text: ${textBox.value}`);
 });
 
-// Recognize Handwriting with Azure OCR
 async function recognizeHandwriting() {
     const imageData = canvas.toDataURL('image/png');
     const blob = dataURLtoBlob(imageData);
@@ -129,34 +128,44 @@ async function recognizeHandwriting() {
     });
 
     if (response.ok) {
-        const { operationLocation } = response.headers;
+        const operationLocation = response.headers.get('operation-location');
+        if (!operationLocation) {
+            console.error("No operation location found in response headers");
+            return;
+        }
         const result = await pollForResult(operationLocation);
         displayRecognizedText(result);
     } else {
-        console.error('Error submitting image to Azure OCR:', response.status, await response.text());
+        console.error("Error submitting image to Azure OCR:", response.status, await response.text());
     }
 }
 
-// Poll for OCR Result
+
 async function pollForResult(operationLocation) {
     let result = null;
 
     while (!result) {
-        await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait for 2 seconds
+        await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait 2 seconds
         const pollResponse = await fetch(operationLocation, {
             headers: { 'Ocp-Apim-Subscription-Key': API_KEY }
         });
+
+        if (!pollResponse.ok) {
+            console.error("Error polling for result:", pollResponse.status, await pollResponse.text());
+            return null;
+        }
 
         const data = await pollResponse.json();
         if (data.status === 'succeeded') {
             result = data.analyzeResult;
         } else if (data.status === 'failed') {
-            throw new Error('Azure OCR analysis failed');
+            throw new Error("Azure OCR analysis failed");
         }
     }
 
     return result;
 }
+
 
 // Display Recognized Text
 function displayRecognizedText(result) {
