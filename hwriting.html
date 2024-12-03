@@ -122,7 +122,7 @@ async function recognizeHandwriting() {
     const response = await fetch(`${ENDPOINT}/vision/v3.2/read/analyze`, {
         method: 'POST',
         headers: {
-            'Ocp-Apim-Subscription-Key': "5eZYSn73kaW7HiscjCgWWQi5gXnjpbIyYdhNfDeVMaqhsnobTd4mJQQJ99ALAC3pKaRXJ3w3AAAFACOG1R8j",
+            'Ocp-Apim-Subscription-Key': API_KEY,
             'Content-Type': 'application/octet-stream'
         },
         body: blob
