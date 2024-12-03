@@ -46,8 +46,8 @@
 
 <script>
 // Azure OCR API Configuration
-const API_KEY = "YOUR_AZURE_API_KEY"; // Replace with your Azure OCR API key
-const ENDPOINT = "YOUR_AZURE_ENDPOINT"; // Replace with your Azure endpoint
+const API_KEY = 5eZYSn73kaW7HiscjCgWWQi5gXnjpbIyYdhNfDeVMaqhsnobTd4mJQQJ99ALAC3pKaRXJ3w3AAAFACOG1R8j; // Replace with your Azure OCR API key
+const ENDPOINT = https://ocrtyping.cognitiveservices.azure.com/; // Replace with your Azure endpoint
 
 // Canvas and Context Setup
 const canvas = document.getElementById('handwritingCanvas');
@@ -117,22 +117,25 @@ confirmButton.addEventListener('click', () => {
 // Recognize Handwriting with Azure OCR
 async function recognizeHandwriting() {
     const imageData = canvas.toDataURL('image/png');
-    const base64Image = imageData.split(',')[1]; // 提取 base64 数据
+    const blob = dataURLtoBlob(imageData);
 
-    const response = await fetch('https://daddy4ai.github.io/zengtrial/proxy', {
+    const response = await fetch(`${ENDPOINT}/vision/v3.2/read/analyze`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: base64Image })
+        headers: {
+            'Ocp-Apim-Subscription-Key': 5eZYSn73kaW7HiscjCgWWQi5gXnjpbIyYdhNfDeVMaqhsnobTd4mJQQJ99ALAC3pKaRXJ3w3AAAFACOG1R8j,
+            'Content-Type': 'application/octet-stream'
+        },
+        body: blob
     });
 
     if (response.ok) {
-        const result = await response.json();
+        const { operationLocation } = response.headers;
+        const result = await pollForResult(operationLocation);
         displayRecognizedText(result);
     } else {
-        console.error('Error with proxy request:', response.status, await response.text());
+        console.error('Error submitting image to Azure OCR:', response.status, await response.text());
     }
 }
-
 
 // Poll for OCR Result
 async function pollForResult(operationLocation) {
